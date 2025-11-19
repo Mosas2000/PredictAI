@@ -1,0 +1,11 @@
+{
+  "PredictionMarket": {
+    "contractName": "PredictionMarket",
+    "address": "0x1250489fC1A1E8eA89f1bf6aB247BBdA70Cf801D",
+    "network": "bnbt",
+    "deploymentTime": "2025-11-16T14:12:42.050Z",
+    "transactionHash": "0x9112f71c7d3c88822e30c1bd6e61a9a9d35abc7ecbd611e0db10af470fae5211",
+    "gasUsed": "1050685",
+    "blockNumber": 73101371
+  }
+}

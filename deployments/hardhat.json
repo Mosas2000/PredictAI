@@ -1,0 +1,11 @@
+{
+  "PredictionMarket": {
+    "contractName": "PredictionMarket",
+    "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "network": "hardhat",
+    "deploymentTime": "2025-11-14T17:15:37.912Z",
+    "transactionHash": "0xcd6d8ab73a02b85d7220f1e00ae99bb3c7f0ef669726f0324355f8833a01f701",
+    "gasUsed": "1050685",
+    "blockNumber": 1
+  }
+}
