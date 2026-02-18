@@ -1,78 +1,24 @@
-# Seedify Backend Server
+# Seedify Backend
 
-This is the backend server for the Seedify project, built with Node.js, Express, and TypeScript.
+Express server with Groq integration for the prediction market chat interface.
 
 ## Setup
 
-1. Install dependencies:
 ```bash
 npm install
-```
-
-2. Create a `.env` file based on `.env.example`:
-```bash
-cp .env.example .env
-```
-
-3. Update the `.env` file with your actual API keys and configuration.
-
-## Development
-
-Run the server in development mode:
-```bash
+cp .env.example .env  # fill in your keys
 npm run dev
 ```
 
-## Production
+## Endpoints
 
-Build the TypeScript code:
-```bash
-npm run build
-```
+- `POST /api/chat` — send a message, get a response
+- `GET /health` — health check
 
-Start the production server:
-```bash
-npm start
-```
+## Env Vars
 
-## API Endpoints
-
-### POST /api/chat
-
-Accepts user messages and returns a response from Claude AI, configured as a prediction market assistant.
-
-Request body:
-```json
-{
-  "message": "Your message here"
-}
-```
-
-Response:
-```json
-{
-  "message": "Claude AI's response to your message",
-  "timestamp": "2023-11-16T14:15:00.000Z"
-}
-```
-
-### GET /health
-
-Health check endpoint.
-
-Response:
-```json
-{
-  "status": "OK",
-  "timestamp": "2023-11-16T14:15:00.000Z"
-}
-```
-
-## Environment Variables
-
-- `PORT`: Server port (default: 3001)
-- `API_KEY`: Your API key
-- `ANTHROPIC_API_KEY`: Your Anthropic API key for Claude AI integration
-- `ETHEREUM_RPC_URL`: Ethereum RPC URL
-- `PRIVATE_KEY`: Your private key
-- `NODE_ENV`: Environment (development/production)
+- `PORT` — server port (default 3001)
+- `GROQ_API_KEY` — Groq API key
+- `ETHEREUM_RPC_URL` — RPC endpoint
+- `CONTRACT_ADDRESS` — deployed contract address
+- `PRIVATE_KEY` — deployer wallet key

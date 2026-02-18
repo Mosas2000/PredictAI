@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Wallet, Send, Bot, User, X, Eye, TrendingUp, TrendingDown, Copy, ExternalLink, Loader2, BarChart3, Sparkles, RefreshCw } from 'lucide-react';
 import { ethers } from 'ethers';
@@ -186,6 +187,8 @@ function App() {
   const [betAmount, setBetAmount] = useState('');
   const [betLoading, setBetLoading] = useState(false);
   const [betError, setBetError] = useState<string | null>(null);
+  const [transactionPending, setTransactionPending] = useState(false);
+  const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
 
   useEffect(() => {
     checkWalletConnection();
@@ -236,6 +239,50 @@ function App() {
         console.log('Attempting to connect to wallet...');
         console.log('Wallet provider:', window.ethereum);
         
+        // Check if we're on correct network before connecting
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const bnbTestnetChainId = '0x61'; // BNB Testnet chain ID
+        
+        if (chainId !== bnbTestnetChainId) {
+          // Try to switch to BNB Testnet
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: bnbTestnetChainId }],
+            });
+          } catch (switchError: any) {
+            // This error code indicates that the chain has not been added to MetaMask
+            if (switchError.code === 4902) {
+              try {
+                await window.ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [
+                    {
+                      chainId: bnbTestnetChainId,
+                      chainName: 'BNB Smart Chain Testnet',
+                      nativeCurrency: {
+                        name: 'BNB',
+                        symbol: 'BNB',
+                        decimals: 18,
+                      },
+                      rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
+                      blockExplorerUrls: ['https://testnet.bscscan.com'],
+                    },
+                  ],
+                });
+              } catch (addError) {
+                console.error('Error adding BNB Testnet:', addError);
+                alert('Failed to add BNB Testnet to your wallet. Please add it manually.');
+                return;
+              }
+            } else {
+              console.error('Error switching to BNB Testnet:', switchError);
+              alert('Please switch to BNB Testnet in your wallet settings.');
+              return;
+            }
+          }
+        }
+        
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         
@@ -243,6 +290,24 @@ function App() {
           setWalletAddress(accounts[0]);
           setIsConnected(true);
           console.log('Successfully connected to wallet:', accounts[0]);
+          
+          // Show success message
+          const successMessage: Message = {
+            id: Date.now().toString(),
+            text: `🔗 **Wallet Connected Successfully!**
+            
+Your wallet (${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}) is now connected to BNB Testnet.
+            
+You can now:
+- Create prediction markets
+- Place bets on existing markets
+- View your transaction history
+
+Ready to start predicting! 🚀`,
+            sender: 'bot',
+            timestamp: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, successMessage]);
         } else {
           console.warn('No accounts returned after wallet connection request');
         }
@@ -255,20 +320,64 @@ function App() {
         });
         
         // Provide more specific error messages based on the error
+        let errorMessage = 'Failed to connect wallet. Please try again.';
+        
         if (error instanceof Error) {
-          if (error.message.includes('User rejected')) {
-            console.warn('User rejected the wallet connection request');
-          } else if (error.message.includes('Already processing')) {
-            console.warn('Wallet connection request already in progress');
+          if ((error as any).message.includes('User rejected') || (error as any).code === 4001) {
+            errorMessage = '🚫 **Connection Cancelled**\n\nYou cancelled wallet connection. No problem! Click "Connect Wallet" when you\'re ready to try again.';
+          } else if ((error as any).message.includes('Already processing')) {
+            errorMessage = '⏳ **Connection in Progress**\n\nYour wallet is already processing a connection request. Please wait a moment and try again.';
           } else {
-            console.error('Unexpected wallet connection error:', error.message);
+            errorMessage = `❌ **Connection Error**\n\n${(error as any).message}\n\nPlease make sure your wallet is unlocked and try again.`;
           }
         }
+        
+        // Show error message in chat
+        const errorMessageObj: Message = {
+          id: Date.now().toString(),
+          text: `${errorMessage}
+
+**💡 Wallet Setup Tips:**
+- Ensure your wallet (MetaMask, Rabby, etc.) is installed and unlocked
+- Make sure you're on BNB Testnet network
+- Check that your wallet has BNB testnet tokens
+- Try refreshing the page and reconnecting
+
+Need help? Contact support for assistance.`,
+          sender: 'bot',
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, errorMessageObj]);
       }
     } else {
-      const errorMessage = 'No wallet detected. Please install a wallet like Rabby or MetaMask to use this app.';
-      console.error(errorMessage);
-      alert(errorMessage);
+      const errorMessage = `🔍 **No Wallet Detected**
+
+No Web3 wallet was found. Please install a wallet to use this app.
+
+**Recommended Wallets:**
+- **MetaMask**: https://metamask.io/download/
+- **Rabby**: https://rabby.io/
+- **Trust Wallet**: https://trustwallet.com/
+
+**Setup Steps:**
+1. Install your preferred wallet browser extension
+2. Create or import your wallet
+3. Switch to BNB Testnet network
+4. Get testnet BNB from a faucet
+5. Return here and click "Connect Wallet"
+
+Need help? Check our setup guide!`;
+      
+      console.error('No wallet detected');
+      
+      // Show detailed setup message in chat
+      const setupMessage: Message = {
+        id: Date.now().toString(),
+        text: errorMessage,
+        sender: 'bot',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, setupMessage]);
     }
   };
 
@@ -354,7 +463,7 @@ function App() {
     }
   };
 
-  const placeBet = async (marketId: number, outcome: 'yes' | 'no', amount: string) => {
+  const placeBet = async (marketId: number, outcome: 'yes' | 'no', amount: string, retryCount = 0) => {
     if (!window.ethereum || !isConnected) {
       setBetError('Please connect your wallet first');
       return;
@@ -365,8 +474,15 @@ function App() {
       return;
     }
 
+    // Prevent multiple simultaneous transactions
+    if (transactionPending) {
+      setBetError('A transaction is already in progress. Please wait for it to complete.');
+      return;
+    }
+
     setBetLoading(true);
     setBetError(null);
+    setTransactionPending(true);
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -375,12 +491,24 @@ function App() {
 
       const amountInWei = ethers.parseEther(amount);
       
+      // Check if user has sufficient balance before attempting transaction
+      const balance = await provider.getBalance(signer.getAddress());
+      const gasEstimate = await contract[outcome === 'yes' ? 'betYes' : 'betNo'].estimateGas(marketId, { value: amountInWei });
+      const gasPrice = await provider.getFeeData();
+      const estimatedGasCost = gasEstimate * (gasPrice.gasPrice || 0n);
+      
+      if (balance < amountInWei + estimatedGasCost) {
+        throw new Error('Insufficient balance: You need enough BNB for both the bet and gas fees.');
+      }
+      
       let tx;
       if (outcome === 'yes') {
         tx = await contract.betYes(marketId, { value: amountInWei });
       } else {
         tx = await contract.betNo(marketId, { value: amountInWei });
       }
+
+      setPendingTxHash(tx.hash);
 
       // Show transaction pending message
       const pendingMessage: Message = {
@@ -390,7 +518,9 @@ function App() {
 Your bet of ${amount} BNB on "${outcome}" for market #${marketId} is being processed...
 Transaction Hash: ${tx.hash}
 
-View on BSC Scan: https://testnet.bscscan.com/tx/${tx.hash}`,
+View on BSC Scan: https://testnet.bscscan.com/tx/${tx.hash}
+
+**Please wait for confirmation...** This usually takes 10-30 seconds on BNB Testnet.`,
         sender: 'bot',
         timestamp: new Date().toISOString(),
       };
@@ -409,10 +539,11 @@ View on BSC Scan: https://testnet.bscscan.com/tx/${tx.hash}`,
 - Amount: ${amount} BNB
 - Transaction Hash: ${tx.hash}
 - Status: Confirmed on BNB Testnet
+- Block Number: ${receipt.blockNumber}
 
 **View Transaction:** https://testnet.bscscan.com/tx/${tx.hash}
 
-Your bet has been recorded on the blockchain! If your prediction is correct, you can claim your winnings after the market is resolved. Good luck!`,
+Your bet has been recorded on the blockchain! If your prediction is correct, you can claim your winnings after the market is resolved. Good luck! 🎯`,
         sender: 'bot',
         timestamp: new Date().toISOString(),
       };
@@ -430,41 +561,32 @@ Your bet has been recorded on the blockchain! If your prediction is correct, you
       console.error('Error placing bet:', error);
       
       let errorMessage = 'Failed to place bet. Please try again.';
+      let canRetry = false;
       
-      if (error.code === 4001) {
-        errorMessage = 'Transaction rejected by user.';
-      } else if (error.code === -32603) {
-        errorMessage = 'Insufficient funds for gas or bet amount.';
-      } else if (error.message.includes('insufficient funds')) {
-        errorMessage = 'Insufficient funds for this transaction.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setBetError(errorMessage);
-      
-      // Show error message in chat
-      const errorMessageObj: Message = {
-        id: Date.now().toString(),
-        text: `❌ **Failed to Place Bet**
-
-${errorMessage}
-
-Please check:
-- Your wallet has sufficient BNB for the bet and gas fees
-- The market is still active and not resolved
-- Network connectivity is stable
-
-You can try again or contact support if the issue persists.`,
-        sender: 'bot',
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errorMessageObj]);
-    } finally {
-      setBetLoading(false);
-    }
-  };
-
+      // Handle specific error codes with better user messages
+      if ((error as any).code === 4001) {
+        errorMessage = '🚫 **Transaction Cancelled**\n\nYou cancelled the transaction in your wallet. No problem! You can try again when you\'re ready.';
+        canRetry = true;
+      } else if ((error as any).code === -32603) {
+        errorMessage = '💰 **Insufficient Funds**\n\nYou don\'t have enough BNB for this transaction. Please check:\n- Sufficient balance for the bet amount\n- Enough BNB for gas fees (typically 0.001-0.005 BNB)\n\nGet more BNB from the testnet faucet and try again.';
+      } else if ((error as any).message.includes('insufficient funds')) {
+        errorMessage = '💰 **Insufficient Balance**\n\nYour wallet doesn\'t have enough BNB for this transaction. Please add more funds and try again.';
+      } else if ((error as any).message.includes('Insufficient balance')) {
+        errorMessage = '💰 **Insufficient Balance**\n\nYou need more BNB to cover both the bet and gas fees. Please add funds to your wallet.';
+      } else if ((error as any).code === 'UNPREDICTABLE_GAS_LIMIT') {
+        errorMessage = '⚠️ **Transaction Might Fail**\n\nThis transaction is likely to fail. This could happen if:\n- The market has already been resolved\n- The bet amount is too small\n- There\'s an issue with the contract\n\nPlease check the market status and try again.';
+      } else if ((error as any).message.includes('MarketDoesNotExist')) {
+        errorMessage = '🔍 **Market Not Found**\n\nThis market doesn\'t exist or may have been deleted. Please refresh the markets and try again.';
+      } else if ((error as any).message.includes('MarketAlreadyResolved')) {
+        errorMessage = '🏁 **Market Already Resolved**\n\nThis market has already been resolved and no longer accepts bets. Please choose an active market.';
+      } else if ((error as any).message.includes('nonce')) {
+        errorMessage = '🔄 **Nonce Error**\n\nThere was an issue with the transaction sequence. Please try again in a few seconds.';
+        canRetry = true;
+      } else if ((error as any).message.includes('replacement transaction underpriced')) {
+        errorMessage = '⚡ **Gas Price Too Low**\n\nThe gas price for this transaction is too low. Please try again with a higher gas price.';
+        canRetry = true;
+      } else if ((error as any).message) {
+        errorMessage = '❌ **Transaction Error**\n\n' + (error as any).message;
   const openBetModal = (market: Market, outcome: 'yes' | 'no') => {
     if (!isConnected) {
       alert('Please connect your wallet first');
@@ -492,7 +614,7 @@ You can try again or contact support if the issue persists.`,
                 title="View on BSC Scan"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2H5a2 2 0 0 1-2v-6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2 2z"/>
+                  <path d="M18 13v6a2 2 0 0 1-2H5a2 2 0 0 1-2v-6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2v-6a2 2 0 0 1 2 2z"/>
                   <polyline points="15 3 21 3 21"/>
                 </svg>
               </button>
@@ -545,13 +667,13 @@ You can try again or contact support if the issue persists.`,
         <header className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105">
-              <img src="/logo.png" alt="PredictAI" className="w-8 h-8 object-contain" />
+              <img src="/logo.png" alt="Seedify" className="w-8 h-8 object-contain" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">PredictAI</h1>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">Seedify</h1>
               <span className="text-sm text-gray-300 flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
-                AI-Powered Prediction Markets
+                Decentralized Prediction Markets
               </span>
             </div>
           </div>
@@ -599,7 +721,7 @@ You can try again or contact support if the issue persists.`,
                   <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center">
                     <Bot className="w-10 h-10" />
                   </div>
-                  <p className="text-xl mb-2 font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">Welcome to PredictAI!</p>
+                  <p className="text-xl mb-2 font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">Welcome to Seedify!</p>
                   <p className="text-sm text-gray-400">Ask me to create a prediction market or explain how it works.</p>
                 </div>
               ) : (
@@ -688,7 +810,7 @@ You can try again or contact support if the issue persists.`,
         <footer className="mt-8 text-center text-gray-300 text-sm">
           <p className="flex items-center justify-center gap-2">
             <Sparkles className="w-4 h-4" />
-            Powered by PredictAI • Create and Trade AI-Powered Prediction Markets
+            Powered by Seedify • Create and Trade Prediction Markets
             <Sparkles className="w-4 h-4" />
           </p>
         </footer>
@@ -699,7 +821,7 @@ You can try again or contact support if the issue persists.`,
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden border border-white/20">
             <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">PredictAI Markets</h2>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">Seedify Markets</h2>
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => fetchMarkets(false)}
@@ -866,9 +988,21 @@ You can try again or contact support if the issue persists.`,
               
               {betError && (
                 <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl">
-                  <p className="text-sm text-red-300">{betError}</p>
+                  <p className="text-sm text-red-300 whitespace-pre-wrap">{betError}</p>
                 </div>
               )}
+              
+              <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                <p className="text-xs text-blue-300">
+                  💡 **Before placing your bet:**
+                </p>
+                <ul className="text-xs text-blue-200 mt-1 space-y-1">
+                  <li>• Ensure your wallet is unlocked and on BNB Testnet</li>
+                  <li>• Check you have sufficient BNB for bet + gas fees</li>
+                  <li>• Verify market is still active</li>
+                  <li>• Review your bet amount carefully</li>
+                </ul>
+              </div>
               
               <div className="flex space-x-3">
                 <button
@@ -881,12 +1015,12 @@ You can try again or contact support if the issue persists.`,
                 <button
                   onClick={() => placeBet(selectedMarket.id, betOutcome!, betAmount)}
                   className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center space-x-2"
-                  disabled={betLoading || !betAmount || parseFloat(betAmount) <= 0}
+                  disabled={betLoading || transactionPending || !betAmount || parseFloat(betAmount) <= 0}
                 >
-                  {betLoading ? (
+                  {betLoading || transactionPending ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Placing Bet...</span>
+                      <span>{transactionPending ? 'Transaction Pending...' : 'Placing Bet...'}</span>
                     </>
                   ) : (
                     <>
@@ -905,3 +1039,4 @@ You can try again or contact support if the issue persists.`,
 }
 
 export default App;
+      }

@@ -450,7 +450,7 @@ You can try again or contact support if the issue persists.`;
       }
     }
 
-    // Use Groq AI for general queries or when shouldUseGroq is true
+    // Use Groq for general queries or when shouldUseGroq is true
     if (shouldUseGroq) {
       try {
         const systemPrompt = `You are a helpful assistant for a blockchain-based prediction market platform. Your role is to:
@@ -562,7 +562,7 @@ app.listen(PORT, () => {
   console.log('Environment variables loaded:');
   console.log('- PORT:', process.env.PORT || 3001);
   console.log('- API_KEY configured:', !!process.env.API_KEY);
-  console.log('- AGENT_ROUTER_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+  console.log('- GROQ_API_KEY configured:', !!process.env.GROQ_API_KEY);
   console.log('- GROQ_API_KEY configured:', !!process.env.GROQ_API_KEY);
   console.log('- ETHEREUM_RPC_URL configured:', !!process.env.ETHEREUM_RPC_URL);
 });

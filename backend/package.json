@@ -1,7 +1,7 @@
 {
-  "name": "predictai-backend",
+  "name": "seedify-backend",
   "version": "1.0.0",
-  "description": "Backend server for PredictAI project",
+  "description": "Backend server for Seedify",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
