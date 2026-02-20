@@ -1,4 +1,4 @@
-# Seedify
+# PredictAI
 
 Decentralized prediction market platform on BNB Chain. Create binary markets, bet on outcomes, and claim winnings on-chain.
 
