@@ -1,4 +1,4 @@
-# Seedify Backend
+# PredictAI Backend
 
 Express server with Groq integration for the prediction market chat interface.
 
